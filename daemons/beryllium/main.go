@@ -192,7 +192,11 @@ func main() {
 	nh.GenerateConfig()
 	nh.ReloadProxy()
 	nsqConsumer := commons.CreateNSQConsumer(nsqConnectURI, "aarch64-proxy", hostname, nh)
-	l.Info("Successfully Connected to NSQ")
+	l.Info(
+		"Successfully Connected to NSQ",
+		zap.String("topic", "aarch64-proxy"),
+		zap.String("channel", hostname),
+	)
 	defer nsqConsumer.Stop()
 	l.Info("Beryllium has Started!!!")
 

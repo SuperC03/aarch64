@@ -11,6 +11,7 @@ import (
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/digitalocean/go-libvirt"
+	"github.com/fosshostorg/aarch64/daemons/hydrogen/utils"
 	"github.com/fosshostorg/aarch64/daemons/internal/commons"
 	"github.com/fosshostorg/aarch64/daemons/internal/message"
 	jsoniter "github.com/json-iterator/go"
@@ -68,6 +69,9 @@ func (h *NSQHandler) HandleMessage(m *nsq.Message) error {
 	case message.ChangeState:
 		msgData := &msg.MessageData
 		h.changeDomainState(msgData)
+	case message.AddDomain:
+		vmData := &msg.VMData
+		h.addDomain(vmData)
 	}
 
 	// h.mutex.Unlock()
@@ -104,6 +108,16 @@ func (h *NSQHandler) MonitorDomainStatus(ctx context.Context) error {
 			commons.ProducerSendStruct(msg, "aarch64-power", h.p)
 		}
 	}
+	return nil
+}
+
+func (h *NSQHandler) addDomain(data *message.VMData) error {
+	if err := utils.CreateBridge(h.l, data); err != nil {
+		return nil
+	}
+	// Check if Domain Already Exists. If not, Set it Up
+	// cmd := exec.Command("virst", "list", "--all")
+	// output, err = cmd.Output()
 	return nil
 }
 
@@ -177,7 +191,11 @@ func main() {
 	}
 	nh := NewNSQHandler(l, nsqProducer, lv, sfNode)
 	nsqConsumer := commons.CreateNSQConsumer(nsqConnectURI, "aarch64-libvirt-"+hostname, "main", nh)
-	l.Info("Successfully Connected to NSQ")
+	l.Info(
+		"Successfully Connected to NSQ",
+		zap.String("topic", "aarch64-libvirt-"+hostname),
+		zap.String("channel", "main"),
+	)
 	defer nsqConsumer.Stop()
 
 	// Start Domain Monitor

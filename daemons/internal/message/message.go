@@ -55,6 +55,8 @@ const (
 	AddProxy
 	DeleteProxy
 	WipeProxy
+	// Hydrogen
+	AddDomain
 )
 
 type ActionEvent int64

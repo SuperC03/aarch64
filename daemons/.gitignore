@@ -10,3 +10,6 @@ nsqd.dat
 # Beryllium Cache Stuff
 beryllium.json
 proxy.cfg
+
+# Sandbox
+playground.go
