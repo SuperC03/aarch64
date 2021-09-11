@@ -11,5 +11,8 @@ nsqd.dat
 beryllium.json
 proxy.cfg
 
+# Beryllium Cache Stuff
+hydrogen.json
+
 # Sandbox
 playground.go

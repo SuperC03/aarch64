@@ -15,6 +15,7 @@ import (
 var NSQCoreUrl = "[fd0d:944c:1337:aa64:1::]:4150"
 var ProxyConfigPath = "/usr/local/openresty/nginx/conf/nginx.conf"
 var ProxyCachePath = "/etc/berrylium.json"
+var DomainCachePath = "/etc/hydrogen.json"
 
 func GetMachineID() int64 {
 	content, err := ioutil.ReadFile("/etc/mid")

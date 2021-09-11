@@ -21,24 +21,28 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-func NewNSQHandler(l *zap.Logger, p *nsq.Producer, virt *libvirt.Libvirt, sfn *snowflake.Node) *NSQHandler {
+func NewNSQHandler(l *zap.Logger, p *nsq.Producer, virt *libvirt.Libvirt, sfn *snowflake.Node, domainCachePath string) *NSQHandler {
 	return &NSQHandler{
-		l:       l,
-		p:       p,
-		virt:    virt,
-		sfn:     sfn,
-		seenIds: make(map[int64]bool),
-		mutex:   sync.Mutex{},
+		l:               l,
+		p:               p,
+		virt:            virt,
+		sfn:             sfn,
+		domainCachePath: domainCachePath,
+		data:            make(map[string]message.VMData),
+		seenIds:         make(map[int64]bool),
+		mutex:           sync.Mutex{},
 	}
 }
 
 type NSQHandler struct {
-	l       *zap.Logger
-	p       *nsq.Producer
-	virt    *libvirt.Libvirt
-	sfn     *snowflake.Node
-	seenIds map[int64]bool
-	mutex   sync.Mutex
+	l               *zap.Logger
+	p               *nsq.Producer
+	virt            *libvirt.Libvirt
+	sfn             *snowflake.Node
+	domainCachePath string
+	data            map[string]message.VMData
+	seenIds         map[int64]bool
+	mutex           sync.Mutex
 }
 
 func (h *NSQHandler) HandleMessage(m *nsq.Message) error {
@@ -55,7 +59,8 @@ func (h *NSQHandler) HandleMessage(m *nsq.Message) error {
 		return nil
 	}
 
-	// h.mutex.Lock()
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
 	// Ensure Duplicate Messaages are Deleted
 	if h.seenIds[msg.ID] {
 		h.l.Error("duplicate message", zap.Int64("message_id", msg.ID))
@@ -74,7 +79,37 @@ func (h *NSQHandler) HandleMessage(m *nsq.Message) error {
 		h.addDomain(vmData)
 	}
 
-	// h.mutex.Unlock()
+	return nil
+}
+
+func (h *NSQHandler) SaveDomainCache() error {
+	file, err := os.Create(h.domainCachePath)
+	defer file.Close()
+	if err != nil {
+		h.l.Error("failed to create hydrogen.json", zap.Error(err))
+		return nil
+	}
+	encoder := json.NewEncoder(file)
+	if err = encoder.Encode(h.data); err != nil {
+		h.l.Error("failed to save hydrogen.json", zap.Error(err))
+		return nil
+	}
+	return nil
+}
+
+func (h *NSQHandler) LoadDomainCache() error {
+	file, err := os.Open(h.domainCachePath)
+	if err != nil {
+		h.l.Info("unable to open hydrogen.json")
+		return nil
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+	if err = decoder.Decode(&h.data); err != nil {
+		h.l.Error("failed to load hydrogen.json")
+		h.data = make(map[string]message.VMData)
+		return nil
+	}
 	return nil
 }
 
@@ -112,12 +147,16 @@ func (h *NSQHandler) MonitorDomainStatus(ctx context.Context) error {
 }
 
 func (h *NSQHandler) addDomain(data *message.VMData) error {
-	if err := utils.CreateBridge(h.l, data); err != nil {
+	if err := utils.CreateAndStartBridge(h.l, data); err != nil {
 		return nil
 	}
-	// Check if Domain Already Exists. If not, Set it Up
-	// cmd := exec.Command("virst", "list", "--all")
-	// output, err = cmd.Output()
+	if err := utils.CreateDomain(h.l, data); err != nil {
+		return nil
+	}
+
+	// Update In-Memory Storage and Cache
+	h.data[data.ID] = *data
+	h.SaveDomainCache()
 	return nil
 }
 
@@ -159,11 +198,13 @@ func main() {
 
 	// Flag Variables
 	var (
-		nsqConnectURI string
+		nsqConnectURI   string
+		domainCachePath string
 	)
 
 	// Parse Flags
 	flag.StringVar(&nsqConnectURI, "nsq-connect-uri", commons.NSQCoreUrl, "The URI for NSQ producers & consumers to connect to")
+	flag.StringVar(&domainCachePath, "domain-cache-path", commons.DomainCachePath, "The path to the domain cache file")
 	flag.Parse()
 
 	// Connect to LibVirt
@@ -189,7 +230,8 @@ func main() {
 	if err != nil {
 		l.Fatal("unable to connect to NSQ", zap.Error(err))
 	}
-	nh := NewNSQHandler(l, nsqProducer, lv, sfNode)
+	nh := NewNSQHandler(l, nsqProducer, lv, sfNode, domainCachePath)
+	nh.LoadDomainCache()
 	nsqConsumer := commons.CreateNSQConsumer(nsqConnectURI, "aarch64-libvirt-"+hostname, "main", nh)
 	l.Info(
 		"Successfully Connected to NSQ",

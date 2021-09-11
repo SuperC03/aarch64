@@ -1,0 +1,10 @@
+version: 2
+ethernets:
+  eth0:
+     addresses:
+       - {{ .Address }}
+     gateway6: {{ .Gateway }}
+     nameservers:
+       addresses:
+         - 2606:4700:4700::64
+         - 2606:4700:4700::6400

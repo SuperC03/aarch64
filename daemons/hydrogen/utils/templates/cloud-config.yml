@@ -1,0 +1,26 @@
+#cloud-config
+hostname: {{ .Hostname }}
+manage_etc_hosts: true
+users:
+  - name: root
+ssh_pwauth: true
+disable_root: false
+chpasswd:
+  list: root:{{ .Password }}
+  expire: False
+final_message: "system up after $UPTIME seconds"
+runcmd:
+{{ if or (eq .Os "ubuntu") (eq .Os "rocky") }}
+  - ip link set dev enp1s0 down
+  - ip link set dev enp1s0 name eth0
+  - ip link set dev enp1s0 up
+  - netplan apply
+{{ end }}
+  - sed -ri 's/^#?PermitRootLogin\s+.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+{{ if or (eq .Os "ubuntu") (eq .Os "debian") }}
+  - systemctl restart sshd
+{{ end }}
+{{ if eq .Os "ubuntu" }}
+  - sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash net.ifnames=0"/' /etc/default/grub
+  - /usr/sbin/update-grub
+{{ end }}
