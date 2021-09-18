@@ -6,6 +6,9 @@ Hydrogen is a NSQ Consumer/Producer living on the aarch64 hypervisor. It takes i
 * `aarch64-libvirt-[hostname]#main`
 ### Known to harass
 * `Helium`
+### Flags
+* `nsq-connect-uri`
+* `domain-cache-path`
 
 ## Helium
 Helium is an NSQ Consumer with the role of taking in VM Power State changes from hypervisors and updating the central mongodb server with the new state.
@@ -14,6 +17,9 @@ Helium is an NSQ Consumer with the role of taking in VM Power State changes from
 * `aarch64-power#helium`
 ### Known to harass
 * Nobody, Helium is quite scared of others
+### Flags
+* `nsq-connect-uri`
+* `mongo-connect-uri`
 
 ## Beryllium
 Beryllium is an NSQ Consumer residing on the hypervisors. It listens on `aarch64-proxy#[hostname]` and updates the local HAProxy configuration in accordance with the received messages.
@@ -21,6 +27,10 @@ Beryllium is an NSQ Consumer residing on the hypervisors. It listens on `aarch64
 * `aarch64-proxy#[hostname]`
 ### Known to harass
 * Nobody, Beryllium enjoys being alone on friday nights
+### Flags
+* `nsq-connect-uri`
+* `proxy-config-path`
+* `proxy-cache-path`
 
 .
 ### Commonly found in
