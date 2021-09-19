@@ -64,3 +64,31 @@ func CreateAndStartBridge(l *zap.Logger, data *message.VMData) error {
 	}
 	return nil
 }
+
+func DeleteBridge(l *zap.Logger, data *message.VMData) error {
+	bridgeNet := fmt.Sprintf("vbr%d", data.Index)
+	// Check if Bridge Exists
+	if output, err := exec.Command(
+		"ls",
+		"/sys/class/net",
+	).Output(); err != nil || !strings.Contains(string(output), bridgeNet) {
+		l.Error(
+			"bridge network does not exist",
+			zap.String("network", bridgeNet),
+		)
+		return nil
+	}
+	// Delete Bridge
+	if output, err := exec.Command(
+		"ip", "link", "del", bridgeNet,
+	).Output(); err != nil {
+		l.Error(
+			"bridge network could not be deleted",
+			zap.String("command", fmt.Sprintf("ip link del %s", bridgeNet)),
+			zap.ByteString("output", output),
+			zap.Error(err),
+		)
+		return err
+	}
+	return nil
+}

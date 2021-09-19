@@ -59,8 +59,8 @@ func (h *NSQHandler) HandleMessage(m *nsq.Message) error {
 		return nil
 	}
 
-	h.mutex.Lock()
-	defer h.mutex.Unlock()
+	// h.mutex.Lock()
+	// defer h.mutex.Unlock()
 	// Ensure Duplicate Messaages are Deleted
 	if h.seenIds[msg.ID] {
 		h.l.Error("duplicate message", zap.Int64("message_id", msg.ID))
@@ -77,6 +77,9 @@ func (h *NSQHandler) HandleMessage(m *nsq.Message) error {
 	case message.AddDomain:
 		vmData := &msg.VMData
 		h.addDomain(vmData)
+	case message.DeleteDomain:
+		vmData := &msg.VMData
+		h.deleteDomain(vmData)
 	}
 
 	return nil
@@ -110,6 +113,25 @@ func (h *NSQHandler) LoadDomainCache() error {
 		h.data = make(map[string]message.VMData)
 		return nil
 	}
+	var (
+		total       int = 0
+		bridgeCount int = 0
+		domainCount int = 0
+	)
+	for _, v := range h.data {
+		total += 1
+		if err := utils.CreateAndStartBridge(h.l, &v); err == nil {
+			bridgeCount += 1
+		}
+		if err := utils.CreateDomain(h.l, &v); err == nil {
+			domainCount += 1
+		}
+	}
+	h.l.Info(
+		"Successfully Loaded hydrogen.json",
+		zap.Int("bridges_created", bridgeCount),
+		zap.Int("domains_created", domainCount),
+	)
 	return nil
 }
 
@@ -156,6 +178,15 @@ func (h *NSQHandler) addDomain(data *message.VMData) error {
 
 	// Update In-Memory Storage and Cache
 	h.data[data.ID] = *data
+	h.SaveDomainCache()
+	return nil
+}
+
+func (h *NSQHandler) deleteDomain(data *message.VMData) error {
+	utils.DeleteDomain(h.l, data)
+	utils.DeleteBridge(h.l, data)
+
+	delete(h.data, data.ID)
 	h.SaveDomainCache()
 	return nil
 }

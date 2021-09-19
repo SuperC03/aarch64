@@ -156,6 +156,54 @@ func CreateDomain(l *zap.Logger, data *message.VMData) error {
 			)
 			return err
 		}
+		l.Info("Successfully Created Domain " + data.ID)
+	} else {
+		return err
 	}
+	return nil
+}
+
+func DeleteDomain(l *zap.Logger, data *message.VMData) error {
+	// Destory (Shutdown) Domain, Continue Regardless of Errors
+	if output, err := exec.Command(
+		"virsh",
+		"destroy",
+		data.ID,
+	).Output(); err != nil {
+		l.Error(
+			"domain was already destroyed or was unable to be shutdown",
+			zap.String("command", fmt.Sprintf("virsh destroy %s", data.ID)),
+			zap.ByteString("output", output),
+			zap.Error(err),
+		)
+	}
+	// Undefine (Delete) Domain, Continue Regardless of Errors
+	if output, err := exec.Command(
+		"virsh",
+		"undefine",
+		"--nvram",
+		data.ID,
+	).Output(); err != nil {
+		l.Error(
+			"domain was already undefined or was unable to be undefined",
+			zap.String("command", fmt.Sprintf("virsh undefine --nvram %s", data.ID)),
+			zap.ByteString("output", output),
+			zap.Error(err),
+		)
+	}
+	// Remove Virtual Machine Files from Host
+	if output, err := exec.Command(
+		"rm", "-rf",
+		fmt.Sprintf("/opt/aarch64/vms/%s*", data.ID),
+	).Output(); err != nil {
+		l.Error(
+			"unable to delete virtual machine files from host",
+			zap.String("command", fmt.Sprintf("rm -rf /opt/aarch64/vms/%s*", data.ID)),
+			zap.ByteString("output", output),
+			zap.Error(err),
+		)
+		return err
+	}
+	l.Info("Successfully Deleted Domain " + data.ID)
 	return nil
 }
